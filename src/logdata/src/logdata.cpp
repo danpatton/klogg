@@ -114,11 +114,15 @@ void LogData::attachFile( const QString& fileName )
         throw CantReattachErr();
     }
 
-    indexingFileName_ = fileName;
+    // FileWatcher always dispatches change events with absolute paths, and
+    // fileChangedOnDisk drops events whose filename doesn't match
+    // indexingFileName_. Canonicalise here so callers can pass a relative
+    // path without silently losing file-change notifications.
+    indexingFileName_ = QFileInfo( fileName ).absoluteFilePath();
     attached_file_.reset( new FileHolder( keepFileClosed_ ) );
     attached_file_->open( indexingFileName_ );
 
-    operationQueue_.enqueueOperation<AttachOperation>( fileName );
+    operationQueue_.enqueueOperation<AttachOperation>( indexingFileName_ );
 }
 
 void LogData::interruptLoading()
