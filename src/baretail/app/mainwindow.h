@@ -3,6 +3,7 @@
 #include <QMainWindow>
 
 class QAction;
+class QCheckBox;
 class QTabWidget;
 class QLabel;
 class TailDocument;
@@ -24,11 +25,13 @@ class MainWindow : public QMainWindow {
     void onEditHighlighters();
     void onFollowTailToggled( bool checked );
     void onChooseFont();
+    void onShowStatusBarToggled( bool checked );
 
   private:
     TailDocument* currentDocument() const;
     void refreshStatusBar();
-    void refreshFollowTailAction();
+    void refreshToolBarPath();
+    void refreshFollowTailCheck();
 
   private:
     void buildMenus();
@@ -36,7 +39,8 @@ class MainWindow : public QMainWindow {
     void buildStatusBar();
 
     QTabWidget* tabs_;
-    QLabel* statusPath_;
     QLabel* statusLines_;
-    QAction* followTailAction_ = nullptr;
+    QLabel* toolbarPath_;
+    QCheckBox* followTailCheck_ = nullptr;
+    QAction* showStatusBarAction_ = nullptr;
 };

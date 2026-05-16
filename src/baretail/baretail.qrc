@@ -1,0 +1,9 @@
+<RCC>
+<qresource>
+    <file alias="images/icons8-search-16.png">../app/images/icons8-search-16.png</file>
+    <file alias="images/icons8-cancel-16.png">../app/images/icons8-cancel-16.png</file>
+    <file alias="images/icons8-delete-16.png">../app/images/icons8-delete-16.png</file>
+    <file alias="images/icons8-open-file-16.png">../app/images/icons8-open-file-16.png</file>
+    <file alias="images/regex.png">../app/images/regex.png</file>
+</qresource>
+</RCC>

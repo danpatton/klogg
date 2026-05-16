@@ -6,20 +6,19 @@
 
 #include "linetypes.h"
 #include "loadingstatus.h"
+#include "regularexpressionpattern.h"
 
 class LogData;
 class LogFilteredData;
 class LogMainView;
-class QLineEdit;
-class QToolButton;
 class QuickFindPattern;
-class QWidget;
-
-#include "linetypes.h"
+class SearchPane;
 
 // Per-tab document: owns a klogg LogData engine plus a LogMainView widget
 // displaying it. Drives follow-tail and emits line-count updates so the
-// status bar can stay in sync.
+// status bar can stay in sync. The search pane is always visible below
+// the view; its results are populated from a LogFilteredData created on
+// demand and reused for the life of the tab.
 class TailDocument : public QWidget {
     Q_OBJECT
   public:
@@ -31,7 +30,11 @@ class TailDocument : public QWidget {
         return fileName_;
     }
     LinesCount lineCount() const;
+    qint64 fileSize() const;
     bool isFollowEnabled() const;
+
+    // MainWindow's Ctrl+F dispatches here on the active tab.
+    void focusSearch();
 
   public Q_SLOTS:
     void setFollowEnabled( bool follow );
@@ -45,12 +48,6 @@ class TailDocument : public QWidget {
 
     void applyFont( const QFont& font );
 
-    // Find-bar commands. MainWindow's Search menu owns the shortcuts and
-    // dispatches here on the active tab.
-    void showFindBar();
-    void findNext();
-    void findPrev();
-
     // Bookmark commands. MainWindow's Bookmarks menu owns the shortcuts and
     // dispatches here on the active tab.
     void toggleBookmark();
@@ -63,22 +60,30 @@ class TailDocument : public QWidget {
 
   private Q_SLOTS:
     void onLoadingFinished( LoadingStatus status );
-    void onFindTextChanged( const QString& text );
-    void hideFindBar();
     void onMarkLinesRequested( const klogg::vector<LineNumber>& lines );
+    void onSearchRequested( const QString& pattern, bool isRegex, bool ignoreCase,
+                            bool invertMatch );
+    void onStopRequested();
+    void onClearRequested();
+    void onJumpToLineRequested( LineNumber line );
+    void onSearchProgressed( LinesCount nbMatches, int progress, LineNumber initialLine );
 
   private:
-    void buildFindBar();
+    // Pull any matches we haven't shown yet out of filteredData_ and into
+    // the search pane. Called after every searchProgressed signal.
+    void appendNewMatches();
 
     QString fileName_;
     std::unique_ptr<LogData> logData_;
     std::unique_ptr<LogFilteredData> filteredData_;
     std::unique_ptr<QuickFindPattern> qfp_;
     LogMainView* view_;
+    SearchPane* searchPane_;
 
-    QWidget* findBar_ = nullptr;
-    QLineEdit* findInput_ = nullptr;
-    QToolButton* findNextBtn_ = nullptr;
-    QToolButton* findPrevBtn_ = nullptr;
-    QToolButton* findCloseBtn_ = nullptr;
+    // Search state. searchActive_ guards filter-tail's updateSearch on
+    // appended lines; resultsShown_ is the number of rows already pushed
+    // to the pane so we know which new matches to append.
+    bool searchActive_ = false;
+    RegularExpressionPattern currentPattern_;
+    quint64 resultsShown_ = 0;
 };

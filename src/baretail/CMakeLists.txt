@@ -42,12 +42,17 @@ add_executable(baretail
     view/menu.cpp
     view/iconloader.h
     view/iconloader.cpp
+    view/searchpane.h
+    view/searchpane.cpp
 
     app/highlightingdialog.h
     app/highlightingdialog.cpp
+
+    baretail.qrc
 )
 
 set_target_properties(baretail PROPERTIES AUTOMOC ON)
+set_target_properties(baretail PROPERTIES AUTORCC ON)
 
 target_include_directories(baretail PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}

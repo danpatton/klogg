@@ -1,24 +1,36 @@
 #include "mainwindow.h"
 
 #include <QAction>
+#include <QCheckBox>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFontDialog>
 #include <QLabel>
 #include <QMenuBar>
+#include <QSettings>
 #include <QStatusBar>
 #include <QTabWidget>
 #include <QToolBar>
+#include <QWidget>
 
 #include "configuration.h"
+#include "iconloader.h"
+#include "readablesize.h"
 #include "taildocument.h"
 #include "application.h"
 #include "highlightingdialog.h"
 
+namespace {
+// QSettings key under the org/app namespace set in main.cpp. Persisting
+// only the few view-state bits we actually care about — no need to drag
+// in klogg's Configuration machinery for one boolean.
+constexpr auto kShowStatusBarKey = "view/showStatusBar";
+}
+
 MainWindow::MainWindow()
     : tabs_( new QTabWidget( this ) )
-    , statusPath_( new QLabel( this ) )
     , statusLines_( new QLabel( this ) )
+    , toolbarPath_( new QLabel( this ) )
 {
     setWindowTitle( "BareTail" );
     resize( 1100, 700 );
@@ -33,6 +45,13 @@ MainWindow::MainWindow()
     buildMenus();
     buildToolBar();
     buildStatusBar();
+
+    // Restore the persisted status-bar visibility after both the action
+    // and the status bar widget exist; the action's setChecked drives the
+    // bar through onShowStatusBarToggled.
+    QSettings settings;
+    const bool showStatusBar = settings.value( kShowStatusBarKey, true ).toBool();
+    showStatusBarAction_->setChecked( showStatusBar );
 }
 
 void MainWindow::buildMenus()
@@ -74,28 +93,23 @@ void MainWindow::buildMenus()
         }
     } );
 
+    viewMenu->addSeparator();
+
+    showStatusBarAction_ = viewMenu->addAction( "Show &Status Bar" );
+    showStatusBarAction_->setCheckable( true );
+    // Default true; the actual persisted value is applied in the ctor
+    // once the status bar widget itself exists.
+    showStatusBarAction_->setChecked( true );
+    connect( showStatusBarAction_, &QAction::toggled,
+             this, &MainWindow::onShowStatusBarToggled );
+
     auto* searchMenu = menuBar()->addMenu( "&Search" );
-    auto* findAction = searchMenu->addAction( "&Find..." );
+    auto* findAction = searchMenu->addAction( "&Find" );
     findAction->setShortcut( QKeySequence::Find );
+    findAction->setToolTip( "Focus the search box" );
     connect( findAction, &QAction::triggered, this, [ this ]() {
         if ( auto* doc = currentDocument() ) {
-            doc->showFindBar();
-        }
-    } );
-
-    auto* findNextAction = searchMenu->addAction( "Find &Next" );
-    findNextAction->setShortcut( QKeySequence( Qt::Key_F3 ) );
-    connect( findNextAction, &QAction::triggered, this, [ this ]() {
-        if ( auto* doc = currentDocument() ) {
-            doc->findNext();
-        }
-    } );
-
-    auto* findPrevAction = searchMenu->addAction( "Find &Previous" );
-    findPrevAction->setShortcut( QKeySequence( Qt::SHIFT | Qt::Key_F3 ) );
-    connect( findPrevAction, &QAction::triggered, this, [ this ]() {
-        if ( auto* doc = currentDocument() ) {
-            doc->findPrev();
+            doc->focusSearch();
         }
     } );
 
@@ -145,23 +159,45 @@ void MainWindow::buildToolBar()
     auto* bar = addToolBar( "Main" );
     bar->setMovable( false );
 
-    auto* open = bar->addAction( "Open" );
+    IconLoader iconLoader( this );
+
+    auto* open = bar->addAction( iconLoader.load( "icons8-open-file-16" ), "Open" );
+    open->setToolTip( "Open a log file" );
     connect( open, &QAction::triggered, this, &MainWindow::onOpenFile );
+
+    auto* highlight = bar->addAction( iconLoader.load( "regex" ), "Highlighting" );
+    highlight->setToolTip( "Edit highlight rules" );
+    connect( highlight, &QAction::triggered, this, &MainWindow::onEditHighlighters );
 
     bar->addSeparator();
 
-    followTailAction_ = bar->addAction( "Follow Tail" );
-    followTailAction_->setCheckable( true );
-    followTailAction_->setChecked( true );
-    followTailAction_->setToolTip(
+    followTailCheck_ = new QCheckBox( "Follow Tail", this );
+    followTailCheck_->setChecked( true );
+    followTailCheck_->setToolTip(
         "Jump to end of file when new lines are appended" );
-    connect( followTailAction_, &QAction::toggled, this, &MainWindow::onFollowTailToggled );
+    connect( followTailCheck_, &QCheckBox::toggled, this, &MainWindow::onFollowTailToggled );
+    bar->addWidget( followTailCheck_ );
+
+    bar->addSeparator();
+
+    toolbarPath_->setTextInteractionFlags( Qt::TextSelectableByMouse );
+    toolbarPath_->setMinimumWidth( 0 );
+    // sizePolicy ensures the label gets the leftover stretch room; without
+    // expanding policy it sits flush against the previous separator.
+    toolbarPath_->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Preferred );
+    bar->addWidget( toolbarPath_ );
 }
 
 void MainWindow::buildStatusBar()
 {
-    statusBar()->addWidget( statusPath_, 1 );
     statusBar()->addPermanentWidget( statusLines_ );
+}
+
+void MainWindow::onShowStatusBarToggled( bool checked )
+{
+    statusBar()->setVisible( checked );
+    QSettings settings;
+    settings.setValue( kShowStatusBarKey, checked );
 }
 
 void MainWindow::onOpenFile()
@@ -176,15 +212,16 @@ void MainWindow::onOpenFile()
 void MainWindow::openFile( const QString& fileName )
 {
     auto* doc = new TailDocument( fileName, tabs_ );
-    if ( followTailAction_ ) {
-        doc->setFollowEnabled( followTailAction_->isChecked() );
+    if ( followTailCheck_ ) {
+        doc->setFollowEnabled( followTailCheck_->isChecked() );
     }
     connect( doc, &TailDocument::linesUpdated, this, &MainWindow::onTabLinesUpdated );
     const int idx = tabs_->addTab( doc, QFileInfo( fileName ).fileName() );
     tabs_->setTabToolTip( idx, fileName );
     tabs_->setCurrentIndex( idx );
     refreshStatusBar();
-    refreshFollowTailAction();
+    refreshToolBarPath();
+    refreshFollowTailCheck();
 }
 
 void MainWindow::onCloseTab( int index )
@@ -193,12 +230,14 @@ void MainWindow::onCloseTab( int index )
     tabs_->removeTab( index );
     w->deleteLater();
     refreshStatusBar();
+    refreshToolBarPath();
 }
 
 void MainWindow::onCurrentTabChanged( int /*index*/ )
 {
     refreshStatusBar();
-    refreshFollowTailAction();
+    refreshToolBarPath();
+    refreshFollowTailCheck();
 }
 
 void MainWindow::onFollowTailToggled( bool checked )
@@ -208,27 +247,28 @@ void MainWindow::onFollowTailToggled( bool checked )
     }
 }
 
-void MainWindow::refreshFollowTailAction()
+void MainWindow::refreshFollowTailCheck()
 {
-    if ( !followTailAction_ ) {
+    if ( !followTailCheck_ ) {
         return;
     }
-    QSignalBlocker blocker( followTailAction_ );
+    QSignalBlocker blocker( followTailCheck_ );
     if ( auto* doc = currentDocument() ) {
-        followTailAction_->setEnabled( true );
-        followTailAction_->setChecked( doc->isFollowEnabled() );
+        followTailCheck_->setEnabled( true );
+        followTailCheck_->setChecked( doc->isFollowEnabled() );
     }
     else {
-        followTailAction_->setEnabled( false );
+        followTailCheck_->setEnabled( false );
     }
 }
 
 void MainWindow::onTabLinesUpdated()
 {
-    // The status bar only ever reflects the visible tab. If another tab
-    // emits an update, ignore it.
+    // The status bar / toolbar path only ever reflect the visible tab.
+    // If another tab emits an update, ignore it.
     if ( sender() == currentDocument() ) {
         refreshStatusBar();
+        refreshToolBarPath();
     }
 }
 
@@ -271,11 +311,22 @@ TailDocument* MainWindow::currentDocument() const
 void MainWindow::refreshStatusBar()
 {
     if ( auto* doc = currentDocument() ) {
-        statusPath_->setText( doc->fileName() );
         statusLines_->setText( QString( "%1 lines" ).arg( doc->lineCount().get() ) );
     }
     else {
-        statusPath_->clear();
         statusLines_->clear();
+    }
+}
+
+void MainWindow::refreshToolBarPath()
+{
+    if ( auto* doc = currentDocument() ) {
+        const auto size = doc->fileSize();
+        const QString sizeText
+            = size >= 0 ? readableSize( static_cast<uint64_t>( size ) ) : QString( "?" );
+        toolbarPath_->setText( QString( "  %1  (%2)" ).arg( doc->fileName(), sizeText ) );
+    }
+    else {
+        toolbarPath_->clear();
     }
 }

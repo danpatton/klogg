@@ -1,11 +1,6 @@
 #include "taildocument.h"
 
-#include <QHBoxLayout>
-#include <QLabel>
-#include <QLineEdit>
 #include <QScrollBar>
-#include <QShortcut>
-#include <QToolButton>
 #include <QVBoxLayout>
 
 #include "abstractlogview.h"
@@ -14,6 +9,7 @@
 #include "logfiltereddata.h"
 #include "logmainview.h"
 #include "quickfindpattern.h"
+#include "searchpane.h"
 
 TailDocument::TailDocument( const QString& fileName, QWidget* parent )
     : QWidget( parent )
@@ -22,6 +18,7 @@ TailDocument::TailDocument( const QString& fileName, QWidget* parent )
     , filteredData_( logData_->getNewFilteredData() )
     , qfp_( std::make_unique<QuickFindPattern>() )
     , view_( new LogMainView( logData_.get(), qfp_.get(), nullptr, nullptr, this ) )
+    , searchPane_( new SearchPane( this ) )
 {
     // useNewFiltering wires the marks-bullet column and gives LogMainView's
     // own [/] shortcuts a non-null LogFilteredData to dereference.
@@ -30,7 +27,9 @@ TailDocument::TailDocument( const QString& fileName, QWidget* parent )
     // AbstractLogView's ctor never consults Configuration::mainFont(); it
     // uses Qt's inherited widget font. Apply the configured font here so
     // new tabs match what the user picked in Tools -> Font...
-    view_->updateFont( Configuration::get().mainFont() );
+    const QFont mainFont = Configuration::get().mainFont();
+    view_->updateFont( mainFont );
+    searchPane_->applyResultsFont( mainFont );
 
     connect( view_, &AbstractLogView::markLines,
              this, &TailDocument::onMarkLinesRequested );
@@ -42,13 +41,23 @@ TailDocument::TailDocument( const QString& fileName, QWidget* parent )
     connect( view_, &AbstractLogView::newSelection,
              view_, [ this ]( auto, auto, auto, auto ) { view_->update(); } );
 
+    connect( searchPane_, &SearchPane::searchRequested,
+             this, &TailDocument::onSearchRequested );
+    connect( searchPane_, &SearchPane::stopRequested,
+             this, &TailDocument::onStopRequested );
+    connect( searchPane_, &SearchPane::clearRequested,
+             this, &TailDocument::onClearRequested );
+    connect( searchPane_, &SearchPane::jumpToLineRequested,
+             this, &TailDocument::onJumpToLineRequested );
+
+    connect( filteredData_.get(), &LogFilteredData::searchProgressed,
+             this, &TailDocument::onSearchProgressed );
+
     auto* layout = new QVBoxLayout( this );
     layout->setContentsMargins( 0, 0, 0, 0 );
     layout->setSpacing( 0 );
-    layout->addWidget( view_ );
-
-    buildFindBar();
-    layout->addWidget( findBar_ );
+    layout->addWidget( view_, 3 );
+    layout->addWidget( searchPane_, 2 );
 
     connect( logData_.get(), &LogData::loadingFinished,
              this, &TailDocument::onLoadingFinished );
@@ -61,48 +70,6 @@ TailDocument::TailDocument( const QString& fileName, QWidget* parent )
     // BareTailPro keyboard model anyway. Arrows / PgUp / PgDn / Home / End
     // still work via QAbstractScrollArea's default key handling.
     logData_->attachFile( fileName_ );
-
-}
-
-void TailDocument::buildFindBar()
-{
-    findBar_ = new QWidget( this );
-    findBar_->setVisible( false );
-
-    auto* findLabel = new QLabel( "Find:", findBar_ );
-
-    findInput_ = new QLineEdit( findBar_ );
-    findInput_->setClearButtonEnabled( true );
-    connect( findInput_, &QLineEdit::textChanged, this, &TailDocument::onFindTextChanged );
-    connect( findInput_, &QLineEdit::returnPressed, this, &TailDocument::findNext );
-
-    findPrevBtn_ = new QToolButton( findBar_ );
-    findPrevBtn_->setText( "Prev" );
-    findPrevBtn_->setToolTip( "Find previous (Shift+F3)" );
-    connect( findPrevBtn_, &QToolButton::clicked, this, &TailDocument::findPrev );
-
-    findNextBtn_ = new QToolButton( findBar_ );
-    findNextBtn_->setText( "Next" );
-    findNextBtn_->setToolTip( "Find next (F3)" );
-    connect( findNextBtn_, &QToolButton::clicked, this, &TailDocument::findNext );
-
-    findCloseBtn_ = new QToolButton( findBar_ );
-    findCloseBtn_->setText( "×" );
-    findCloseBtn_->setToolTip( "Close (Esc)" );
-    connect( findCloseBtn_, &QToolButton::clicked, this, &TailDocument::hideFindBar );
-
-    // Esc anywhere inside the find bar dismisses it.
-    auto* hideShortcut = new QShortcut( QKeySequence( Qt::Key_Escape ), findBar_ );
-    hideShortcut->setContext( Qt::WidgetWithChildrenShortcut );
-    connect( hideShortcut, &QShortcut::activated, this, &TailDocument::hideFindBar );
-
-    auto* layout = new QHBoxLayout( findBar_ );
-    layout->setContentsMargins( 4, 2, 4, 2 );
-    layout->addWidget( findLabel );
-    layout->addWidget( findInput_, 1 );
-    layout->addWidget( findPrevBtn_ );
-    layout->addWidget( findNextBtn_ );
-    layout->addWidget( findCloseBtn_ );
 }
 
 TailDocument::~TailDocument() = default;
@@ -110,6 +77,11 @@ TailDocument::~TailDocument() = default;
 LinesCount TailDocument::lineCount() const
 {
     return logData_->getNbLine();
+}
+
+qint64 TailDocument::fileSize() const
+{
+    return logData_->getFileSize();
 }
 
 bool TailDocument::isFollowEnabled() const
@@ -140,41 +112,87 @@ void TailDocument::jumpToBottom()
 void TailDocument::applyFont( const QFont& font )
 {
     view_->updateFont( font );
+    searchPane_->applyResultsFont( font );
 }
 
-void TailDocument::showFindBar()
+void TailDocument::focusSearch()
 {
-    findBar_->setVisible( true );
-    findInput_->setFocus();
-    findInput_->selectAll();
+    searchPane_->focusSearchInput();
 }
 
-void TailDocument::hideFindBar()
+void TailDocument::onSearchRequested( const QString& pattern, bool isRegex, bool ignoreCase,
+                                      bool invertMatch )
 {
-    findBar_->setVisible( false );
+    // Any in-flight search must be interrupted before we mutate the
+    // pattern — runSearch() will otherwise block.
+    filteredData_->interruptSearch();
+    filteredData_->clearSearch();
+    searchPane_->clearResults();
+    resultsShown_ = 0;
+
+    currentPattern_ = RegularExpressionPattern( pattern, /*caseSensitive=*/!ignoreCase,
+                                                /*inverse=*/invertMatch, /*boolean=*/false,
+                                                /*plainText=*/!isRegex );
+    searchActive_ = true;
+    filteredData_->runSearch( currentPattern_ );
+
+    // Drive the inline highlight in the main view from the same pattern,
+    // so visible matches show up coloured under the cursor.
+    qfp_->changeSearchPattern( pattern, ignoreCase, isRegex );
+
+    searchPane_->setStatusText( "Searching..." );
+}
+
+void TailDocument::onStopRequested()
+{
+    filteredData_->interruptSearch();
+    // Leave existing results visible — Stop is "pause", not "wipe".
+    searchPane_->setStatusText(
+        QString( "Stopped (%1 matches)" ).arg( filteredData_->getNbMatches().get() ) );
+}
+
+void TailDocument::onClearRequested()
+{
+    filteredData_->interruptSearch();
+    filteredData_->clearSearch();
+    searchActive_ = false;
+    resultsShown_ = 0;
     qfp_->changeSearchPattern( QString() );
+    view_->update();
+}
+
+void TailDocument::onJumpToLineRequested( LineNumber line )
+{
+    view_->selectAndDisplayLine( line );
     view_->setFocus();
 }
 
-void TailDocument::onFindTextChanged( const QString& text )
+void TailDocument::onSearchProgressed( LinesCount nbMatches, int progress,
+                                       LineNumber /*initialLine*/ )
 {
-    // Plain-substring by default. The in-body highlight repaints automatically
-    // because LogMainView is connected to QuickFindPattern::patternUpdated.
-    qfp_->changeSearchPattern( text, /*isRegex=*/false );
-}
-
-void TailDocument::findNext()
-{
-    if ( qfp_->isActive() ) {
-        view_->searchForward();
+    appendNewMatches();
+    if ( progress >= 100 ) {
+        searchPane_->setStatusText(
+            QString( "Found %1 matching lines" ).arg( nbMatches.get() ) );
+    }
+    else {
+        searchPane_->setStatusText(
+            QString( "Found %1 matching lines so far (%2%)" )
+                .arg( nbMatches.get() )
+                .arg( progress ) );
     }
 }
 
-void TailDocument::findPrev()
+void TailDocument::appendNewMatches()
 {
-    if ( qfp_->isActive() ) {
-        view_->searchBackward();
+    const auto total = filteredData_->getNbMatches().get();
+    for ( quint64 i = resultsShown_; i < total; ++i ) {
+        const auto matchIndex = LineNumber( i );
+        const auto sourceLine = filteredData_->getMatchingLineNumber( matchIndex );
+        const QString text = logData_->getLineString( sourceLine );
+        searchPane_->appendResult( sourceLine, text );
     }
+    resultsShown_ = total;
 }
 
 void TailDocument::onMarkLinesRequested( const klogg::vector<LineNumber>& lines )
@@ -228,6 +246,12 @@ void TailDocument::onLoadingFinished( LoadingStatus status )
     // feature, so just track the data extent.
     const auto totalLines = logData_->getNbLine();
     view_->setSearchLimits( 0_lnum, LineNumber( totalLines.get() ) );
+
+    // Filter Tail: extend the active search over the newly indexed range.
+    // updateSearch resumes from wherever the worker last finished.
+    if ( searchActive_ && searchPane_->isFilterTailEnabled() ) {
+        filteredData_->updateSearch( 0_lnum, LineNumber( totalLines.get() ) );
+    }
 
     Q_EMIT linesUpdated( totalLines );
 }
