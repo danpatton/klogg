@@ -134,13 +134,20 @@ void TailDocument::onSearchRequested( const QString& pattern, bool isRegex, bool
                                                 /*inverse=*/invertMatch, /*boolean=*/false,
                                                 /*plainText=*/!isRegex );
     searchActive_ = true;
+
+    // "Searching..." must be set BEFORE runSearch: cache hits in
+    // LogFilteredData emit searchProgressed synchronously with progress=100
+    // from inside runSearch, and our onSearchProgressed handler writes the
+    // final "Found N matching lines" status. If we set "Searching..." after
+    // runSearch returns, it overwrites that final status and the UI is
+    // stuck at "Searching..." forever for any previously-cached search.
+    searchPane_->setStatusText( "Searching..." );
+
     filteredData_->runSearch( currentPattern_ );
 
     // Drive the inline highlight in the main view from the same pattern,
     // so visible matches show up coloured under the cursor.
     qfp_->changeSearchPattern( pattern, ignoreCase, isRegex );
-
-    searchPane_->setStatusText( "Searching..." );
 }
 
 void TailDocument::onStopRequested()
