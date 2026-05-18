@@ -6,5 +6,7 @@
     <file alias="images/baretail/clear.png">images/clear.png</file>
     <file alias="images/baretail/open.png">images/open.png</file>
     <file alias="images/baretail/highlight.png">images/highlight.png</file>
+    <file alias="images/baretail/app-16.ico">images/app-16.ico</file>
+    <file alias="images/baretail/app-32.ico">images/app-32.ico</file>
 </qresource>
 </RCC>
