@@ -7,8 +7,8 @@
 class QCheckBox;
 class QLabel;
 class QLineEdit;
-class QPushButton;
 class QTimer;
+class QToolButton;
 class QTreeWidget;
 
 // Always-visible search pane docked below the tail. Owns the search input,
@@ -69,9 +69,9 @@ class SearchPane : public QWidget {
     void emitSearchRequest();
 
     QLineEdit* input_;
-    QPushButton* searchBtn_;
-    QPushButton* stopBtn_;
-    QPushButton* clearBtn_;
+    QToolButton* searchBtn_;
+    QToolButton* stopBtn_;
+    QToolButton* clearBtn_;
     QCheckBox* regexCheck_;
     QCheckBox* ignoreCaseCheck_;
     QCheckBox* invertMatchCheck_;

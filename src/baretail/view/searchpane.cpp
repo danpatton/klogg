@@ -5,12 +5,26 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
-#include <QPushButton>
 #include <QTimer>
+#include <QToolButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
 #include "iconloader.h"
+
+namespace {
+// Toolbar-style flat button: no chrome at rest, raised border on hover,
+// icon + text laid out horizontally. Matches the look of the QActions in
+// the main toolbar.
+QToolButton* makeToolButton( QWidget* parent, const QString& text )
+{
+    auto* button = new QToolButton( parent );
+    button->setText( text );
+    button->setAutoRaise( true );
+    button->setToolButtonStyle( Qt::ToolButtonTextBesideIcon );
+    return button;
+}
+}
 
 namespace {
 // Delay between the last keystroke in the search box and the search firing.
@@ -22,9 +36,9 @@ constexpr int kDebounceMs = 200;
 SearchPane::SearchPane( QWidget* parent )
     : QWidget( parent )
     , input_( new QLineEdit( this ) )
-    , searchBtn_( new QPushButton( "Search", this ) )
-    , stopBtn_( new QPushButton( "Stop", this ) )
-    , clearBtn_( new QPushButton( "Clear", this ) )
+    , searchBtn_( makeToolButton( this, "Search" ) )
+    , stopBtn_( makeToolButton( this, "Stop" ) )
+    , clearBtn_( makeToolButton( this, "Clear" ) )
     , regexCheck_( new QCheckBox( "Regex Syntax", this ) )
     , ignoreCaseCheck_( new QCheckBox( "Ignore Case", this ) )
     , invertMatchCheck_( new QCheckBox( "Invert Match", this ) )
@@ -38,9 +52,9 @@ SearchPane::SearchPane( QWidget* parent )
     connect( input_, &QLineEdit::textChanged, this, &SearchPane::onSearchTextChanged );
     connect( input_, &QLineEdit::returnPressed, this, &SearchPane::onSearchClicked );
 
-    connect( searchBtn_, &QPushButton::clicked, this, &SearchPane::onSearchClicked );
-    connect( stopBtn_, &QPushButton::clicked, this, &SearchPane::onStopClicked );
-    connect( clearBtn_, &QPushButton::clicked, this, &SearchPane::onClearClicked );
+    connect( searchBtn_, &QToolButton::clicked, this, &SearchPane::onSearchClicked );
+    connect( stopBtn_, &QToolButton::clicked, this, &SearchPane::onStopClicked );
+    connect( clearBtn_, &QToolButton::clicked, this, &SearchPane::onClearClicked );
     connect( filterTailCheck_, &QCheckBox::toggled, this, &SearchPane::filterTailToggled );
 
     // Toggling any of these mid-search changes the meaning of the current
@@ -68,20 +82,16 @@ SearchPane::SearchPane( QWidget* parent )
     connect( resultList_, &QTreeWidget::itemClicked, this, &SearchPane::onResultActivated );
 
     IconLoader iconLoader( this );
-    const QIcon searchIcon = iconLoader.load( "icons8-search-16" );
-    const QIcon cancelIcon = iconLoader.load( "icons8-cancel-16" );
-    const QIcon deleteIcon = iconLoader.load( "icons8-delete-16" );
-
-    searchBtn_->setIcon( searchIcon );
-    stopBtn_->setIcon( cancelIcon );
-    clearBtn_->setIcon( deleteIcon );
+    searchBtn_->setIcon( iconLoader.load( "baretail/search" ) );
+    stopBtn_->setIcon( iconLoader.load( "baretail/stop" ) );
+    clearBtn_->setIcon( iconLoader.load( "baretail/clear" ) );
 
     auto* searchLabelIcon = new QLabel( this );
-    searchLabelIcon->setPixmap( searchIcon.pixmap( 16, 16 ) );
+    searchLabelIcon->setPixmap( iconLoader.load( "baretail/regex" ).pixmap( 16, 16 ) );
 
     auto* topRow = new QHBoxLayout();
-    topRow->setContentsMargins( 8, 6, 8, 4 );
-    topRow->setSpacing( 10 );
+    topRow->setContentsMargins( 4, 0, 4, 0 );
+    topRow->setSpacing( 4 );
     topRow->addWidget( searchLabelIcon );
     topRow->addWidget( new QLabel( "Text", this ) );
     topRow->addWidget( input_, 1 );
@@ -90,8 +100,8 @@ SearchPane::SearchPane( QWidget* parent )
     topRow->addWidget( invertMatchCheck_ );
 
     auto* btnRow = new QHBoxLayout();
-    btnRow->setContentsMargins( 8, 2, 8, 6 );
-    btnRow->setSpacing( 10 );
+    btnRow->setContentsMargins( 4, 0, 4, 0 );
+    btnRow->setSpacing( 4 );
     btnRow->addWidget( searchBtn_ );
     btnRow->addWidget( stopBtn_ );
     btnRow->addWidget( clearBtn_ );

@@ -158,18 +158,27 @@ void MainWindow::buildToolBar()
 {
     auto* bar = addToolBar( "Main" );
     bar->setMovable( false );
+    // Pin icon size to the actual PNG dimensions so the active style doesn't
+    // upscale them. Toolbar spacing / button padding are left to the style.
+    bar->setIconSize( QSize( 16, 16 ) );
+    // Show "Open" / "Highlighting" next to their icons. Only affects
+    // QAction-backed buttons; the Follow Tail QCheckBox added below is
+    // unaffected.
+    bar->setToolButtonStyle( Qt::ToolButtonTextBesideIcon );
 
     IconLoader iconLoader( this );
 
-    auto* open = bar->addAction( iconLoader.load( "icons8-open-file-16" ), "Open" );
-    open->setToolTip( "Open a log file" );
+    auto* open = bar->addAction( iconLoader.load( "baretail/open" ), "Open" );
+    // QAction defaults its tooltip to the action text; explicit empty
+    // string suppresses the redundant "Open" hover.
+    open->setToolTip( QStringLiteral( "" ) );
     connect( open, &QAction::triggered, this, &MainWindow::onOpenFile );
 
-    auto* highlight = bar->addAction( iconLoader.load( "regex" ), "Highlighting" );
-    highlight->setToolTip( "Edit highlight rules" );
+    auto* highlight = bar->addAction( iconLoader.load( "baretail/highlight" ), "Highlighting" );
+    highlight->setToolTip( QStringLiteral( "" ) );
     connect( highlight, &QAction::triggered, this, &MainWindow::onEditHighlighters );
 
-    bar->addSeparator();
+    // bar->addSeparator();
 
     followTailCheck_ = new QCheckBox( "Follow Tail", this );
     followTailCheck_->setChecked( true );
@@ -178,7 +187,7 @@ void MainWindow::buildToolBar()
     connect( followTailCheck_, &QCheckBox::toggled, this, &MainWindow::onFollowTailToggled );
     bar->addWidget( followTailCheck_ );
 
-    bar->addSeparator();
+    // bar->addSeparator();
 
     toolbarPath_->setTextInteractionFlags( Qt::TextSelectableByMouse );
     toolbarPath_->setMinimumWidth( 0 );
