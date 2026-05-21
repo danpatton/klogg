@@ -1,0 +1,100 @@
+#pragma once
+
+#include <QStringList>
+#include <QWidget>
+
+#include "linetypes.h"
+
+class QCheckBox;
+class QLabel;
+class QLineEdit;
+class QTimer;
+class QToolButton;
+class QTreeWidget;
+class SavedSearchesPopup;
+struct SavedSearch;
+
+// Always-visible search pane docked below the tail. Owns the search input,
+// result list, and the option toggles; emits high-level requests that the
+// TailDocument routes into LogFilteredData. The pane has no notion of the
+// engine, of files, or of the main view.
+//
+// The debounce timer is what lets typing into the search box re-trigger a
+// search without spawning a new worker on every keystroke. Pressing Enter
+// or the Search button bypasses the timer; Clear stops + empties results.
+class SearchPane : public QWidget {
+    Q_OBJECT
+  public:
+    explicit SearchPane( QWidget* parent = nullptr );
+
+    // Focus the search input (used by Ctrl+F).
+    void focusSearchInput();
+
+    // Apply the configured main (viewport) font to the search input and
+    // the result list, so both render in the same face/size as the log
+    // lines they refer to.
+    void applyMainFont( const QFont& font );
+
+    bool isFilterTailEnabled() const;
+
+  Q_SIGNALS:
+    // Fired when the user explicitly asks for a search, or after the
+    // type-to-search debounce fires with non-empty text.
+    void searchRequested( const QString& pattern, bool isRegex, bool ignoreCase,
+                          bool invertMatch );
+    // Fired by the Stop button.
+    void stopRequested();
+    // Fired by Clear (also empties the result list locally).
+    void clearRequested();
+    // Fired when the Filter Tail checkbox is toggled; the document watches
+    // this so it can drive updateSearch() on appended lines.
+    void filterTailToggled( bool enabled );
+    // Fired when the user activates a row in the result list.
+    void jumpToLineRequested( LineNumber line );
+
+  public Q_SLOTS:
+    // Append one result row. Called by the document as matches stream in.
+    // groupCaptures, if non-empty, fills the capture-group columns added
+    // by configureColumns() in the same order.
+    void appendResult( LineNumber line, const QString& text,
+                       const QStringList& groupCaptures = {} );
+    // Wipe the result list (and the status label).
+    void clearResults();
+    // Status text shown on the toolbar row, e.g. "Found 300 matching
+    // lines so far...". Empty string hides it.
+    void setStatusText( const QString& text );
+    // Rebuild the result list's columns. captureGroupCount=0 leaves only
+    // the default Line/Text pair; >0 adds that many columns labelled
+    // "1", "2", … matching regex group indices.
+    void configureColumns( int captureGroupCount );
+
+  private Q_SLOTS:
+    void onSearchTextChanged( const QString& text );
+    void onDebounceFired();
+    void onSearchClicked();
+    void onStopClicked();
+    void onClearClicked();
+    void onAddClicked();
+    void onResultActivated();
+    void onDropdownClicked();
+    void onSavedSearchSelected( const SavedSearch& search );
+
+  private:
+    void emitSearchRequest();
+
+    QLineEdit* input_;
+    QToolButton* dropdownBtn_;
+    QToolButton* addBtn_;
+    QToolButton* searchBtn_;
+    QToolButton* stopBtn_;
+    QToolButton* clearBtn_;
+    QCheckBox* regexCheck_;
+    QCheckBox* ignoreCaseCheck_;
+    QCheckBox* invertMatchCheck_;
+    QCheckBox* filterTailCheck_;
+    QLabel* statusLabel_;
+    QTreeWidget* resultList_;
+    QTimer* debounce_;
+    SavedSearchesPopup* savedSearchesPopup_;
+    int captureGroupCount_ = 0;
+};
