@@ -4,6 +4,7 @@
     <file alias="images/baretail/search.png">images/search.png</file>
     <file alias="images/baretail/stop.png">images/stop.png</file>
     <file alias="images/baretail/clear.png">images/clear.png</file>
+    <file alias="images/baretail/add.png">images/add.png</file>
     <file alias="images/baretail/open.png">images/open.png</file>
     <file alias="images/baretail/highlight.png">images/highlight.png</file>
     <file alias="images/baretail/app-16.ico">images/app-16.ico</file>

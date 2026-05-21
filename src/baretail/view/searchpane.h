@@ -74,6 +74,7 @@ class SearchPane : public QWidget {
     void onSearchClicked();
     void onStopClicked();
     void onClearClicked();
+    void onAddClicked();
     void onResultActivated();
     void onDropdownClicked();
     void onSavedSearchSelected( const SavedSearch& search );
@@ -83,6 +84,7 @@ class SearchPane : public QWidget {
 
     QLineEdit* input_;
     QToolButton* dropdownBtn_;
+    QToolButton* addBtn_;
     QToolButton* searchBtn_;
     QToolButton* stopBtn_;
     QToolButton* clearBtn_;

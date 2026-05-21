@@ -39,6 +39,7 @@ SearchPane::SearchPane( QWidget* parent )
     : QWidget( parent )
     , input_( new QLineEdit( this ) )
     , dropdownBtn_( new QToolButton( this ) )
+    , addBtn_( makeToolButton( this, "Add" ) )
     , searchBtn_( makeToolButton( this, "Search" ) )
     , stopBtn_( makeToolButton( this, "Stop" ) )
     , clearBtn_( makeToolButton( this, "Clear" ) )
@@ -62,6 +63,10 @@ SearchPane::SearchPane( QWidget* parent )
     connect( dropdownBtn_, &QToolButton::clicked, this, &SearchPane::onDropdownClicked );
     connect( savedSearchesPopup_, &SavedSearchesPopup::searchSelected, this,
              &SearchPane::onSavedSearchSelected );
+
+    addBtn_->setToolTip( "Save current search" );
+    addBtn_->setEnabled( false );
+    connect( addBtn_, &QToolButton::clicked, this, &SearchPane::onAddClicked );
 
     connect( searchBtn_, &QToolButton::clicked, this, &SearchPane::onSearchClicked );
     connect( stopBtn_, &QToolButton::clicked, this, &SearchPane::onStopClicked );
@@ -93,6 +98,7 @@ SearchPane::SearchPane( QWidget* parent )
     searchBtn_->setIcon( iconLoader.load( "baretail/search" ) );
     stopBtn_->setIcon( iconLoader.load( "baretail/stop" ) );
     clearBtn_->setIcon( iconLoader.load( "baretail/clear" ) );
+    addBtn_->setIcon( iconLoader.load( "baretail/add" ) );
 
     auto* searchLabelIcon = new QLabel( this );
     searchLabelIcon->setPixmap( iconLoader.load( "baretail/regex" ).pixmap( 16, 16 ) );
@@ -104,6 +110,7 @@ SearchPane::SearchPane( QWidget* parent )
     topRow->addWidget( new QLabel( "Text", this ) );
     topRow->addWidget( input_, 1 );
     topRow->addWidget( dropdownBtn_ );
+    topRow->addWidget( addBtn_ );
     topRow->addWidget( regexCheck_ );
     topRow->addWidget( ignoreCaseCheck_ );
     topRow->addWidget( invertMatchCheck_ );
@@ -144,6 +151,7 @@ void SearchPane::applyMainFont( const QFont& font )
 
 void SearchPane::onSearchTextChanged( const QString& text )
 {
+    addBtn_->setEnabled( !text.isEmpty() );
     if ( text.isEmpty() ) {
         // Empty input is treated as "no active search" — kill the pending
         // debounce so we don't fire an empty search immediately after the
@@ -177,6 +185,22 @@ void SearchPane::onClearClicked()
     input_->clear();
     clearResults();
     Q_EMIT clearRequested();
+}
+
+void SearchPane::onAddClicked()
+{
+    // Append the current pattern + flags as a new saved entry. Name is left
+    // empty (renders as "Unnamed") — matches TextSearchesDialog::onAdd; the
+    // user can rename via Preferences → Text Searches.
+    const QString pattern = input_->text();
+    if ( pattern.isEmpty() ) {
+        return;
+    }
+    auto items = SavedSearches::get().items();
+    items.append( SavedSearch{ QString(), pattern, regexCheck_->isChecked(),
+                               ignoreCaseCheck_->isChecked(), invertMatchCheck_->isChecked() } );
+    SavedSearches::get().setItems( std::move( items ) );
+    SavedSearches::get().save();
 }
 
 void SearchPane::emitSearchRequest()
