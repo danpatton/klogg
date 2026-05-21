@@ -10,6 +10,8 @@ class QLineEdit;
 class QTimer;
 class QToolButton;
 class QTreeWidget;
+class SavedSearchesPopup;
+struct SavedSearch;
 
 // Always-visible search pane docked below the tail. Owns the search input,
 // result list, and the option toggles; emits high-level requests that the
@@ -27,9 +29,10 @@ class SearchPane : public QWidget {
     // Focus the search input (used by Ctrl+F).
     void focusSearchInput();
 
-    // Apply a font to the result list only — matches the viewport's font
-    // so results render at the same metrics as the lines they came from.
-    void applyResultsFont( const QFont& font );
+    // Apply the configured main (viewport) font to the search input and
+    // the result list, so both render in the same face/size as the log
+    // lines they refer to.
+    void applyMainFont( const QFont& font );
 
     bool isFilterTailEnabled() const;
 
@@ -64,11 +67,14 @@ class SearchPane : public QWidget {
     void onStopClicked();
     void onClearClicked();
     void onResultActivated();
+    void onDropdownClicked();
+    void onSavedSearchSelected( const SavedSearch& search );
 
   private:
     void emitSearchRequest();
 
     QLineEdit* input_;
+    QToolButton* dropdownBtn_;
     QToolButton* searchBtn_;
     QToolButton* stopBtn_;
     QToolButton* clearBtn_;
@@ -79,4 +85,5 @@ class SearchPane : public QWidget {
     QLabel* statusLabel_;
     QTreeWidget* resultList_;
     QTimer* debounce_;
+    SavedSearchesPopup* savedSearchesPopup_;
 };

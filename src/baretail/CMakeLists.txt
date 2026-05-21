@@ -44,9 +44,15 @@ add_executable(baretail
     view/iconloader.cpp
     view/searchpane.h
     view/searchpane.cpp
+    view/savedsearches.h
+    view/savedsearches.cpp
+    view/savedsearchespopup.h
+    view/savedsearchespopup.cpp
 
     app/highlightingdialog.h
     app/highlightingdialog.cpp
+    app/textsearchesdialog.h
+    app/textsearchesdialog.cpp
 
     baretail.qrc
 )

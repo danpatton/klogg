@@ -11,6 +11,8 @@
 #include <QVBoxLayout>
 
 #include "iconloader.h"
+#include "savedsearches.h"
+#include "savedsearchespopup.h"
 
 namespace {
 // Toolbar-style flat button: no chrome at rest, raised border on hover,
@@ -36,6 +38,7 @@ constexpr int kDebounceMs = 200;
 SearchPane::SearchPane( QWidget* parent )
     : QWidget( parent )
     , input_( new QLineEdit( this ) )
+    , dropdownBtn_( new QToolButton( this ) )
     , searchBtn_( makeToolButton( this, "Search" ) )
     , stopBtn_( makeToolButton( this, "Stop" ) )
     , clearBtn_( makeToolButton( this, "Clear" ) )
@@ -46,11 +49,19 @@ SearchPane::SearchPane( QWidget* parent )
     , statusLabel_( new QLabel( this ) )
     , resultList_( new QTreeWidget( this ) )
     , debounce_( new QTimer( this ) )
+    , savedSearchesPopup_( new SavedSearchesPopup( this ) )
 {
     input_->setPlaceholderText( "Search..." );
     input_->setClearButtonEnabled( true );
     connect( input_, &QLineEdit::textChanged, this, &SearchPane::onSearchTextChanged );
     connect( input_, &QLineEdit::returnPressed, this, &SearchPane::onSearchClicked );
+
+    dropdownBtn_->setAutoRaise( true );
+    dropdownBtn_->setArrowType( Qt::DownArrow );
+    dropdownBtn_->setToolTip( "Saved searches" );
+    connect( dropdownBtn_, &QToolButton::clicked, this, &SearchPane::onDropdownClicked );
+    connect( savedSearchesPopup_, &SavedSearchesPopup::searchSelected, this,
+             &SearchPane::onSavedSearchSelected );
 
     connect( searchBtn_, &QToolButton::clicked, this, &SearchPane::onSearchClicked );
     connect( stopBtn_, &QToolButton::clicked, this, &SearchPane::onStopClicked );
@@ -95,6 +106,7 @@ SearchPane::SearchPane( QWidget* parent )
     topRow->addWidget( searchLabelIcon );
     topRow->addWidget( new QLabel( "Text", this ) );
     topRow->addWidget( input_, 1 );
+    topRow->addWidget( dropdownBtn_ );
     topRow->addWidget( regexCheck_ );
     topRow->addWidget( ignoreCaseCheck_ );
     topRow->addWidget( invertMatchCheck_ );
@@ -127,8 +139,9 @@ bool SearchPane::isFilterTailEnabled() const
     return filterTailCheck_->isChecked();
 }
 
-void SearchPane::applyResultsFont( const QFont& font )
+void SearchPane::applyMainFont( const QFont& font )
 {
+    input_->setFont( font );
     resultList_->setFont( font );
 }
 
@@ -191,6 +204,37 @@ void SearchPane::onResultActivated()
         return;
     }
     Q_EMIT jumpToLineRequested( LineNumber( raw ) );
+}
+
+void SearchPane::onDropdownClicked()
+{
+    // Re-pull from storage on every open so edits made via the Text
+    // Searches dialog are reflected without us having to subscribe.
+    savedSearchesPopup_->setItems( SavedSearches::get().items() );
+    // Anchor under the input so the popup visually attaches to the field
+    // rather than to the button. The input's bottom-left is also where
+    // the user's eye is — feels less like a context menu, more like a
+    // history dropdown.
+    savedSearchesPopup_->popupBelow( input_ );
+}
+
+void SearchPane::onSavedSearchSelected( const SavedSearch& search )
+{
+    // Apply the saved entry as one atomic action: change all four widgets
+    // with signals blocked so we don't fire a search per checkbox toggle
+    // (the option-toggle restart connections would otherwise cascade).
+    {
+        const QSignalBlocker blockRegex( regexCheck_ );
+        const QSignalBlocker blockIc( ignoreCaseCheck_ );
+        const QSignalBlocker blockInvert( invertMatchCheck_ );
+        const QSignalBlocker blockInput( input_ );
+        regexCheck_->setChecked( search.isRegex );
+        ignoreCaseCheck_->setChecked( search.ignoreCase );
+        invertMatchCheck_->setChecked( search.invertMatch );
+        input_->setText( search.pattern );
+    }
+    debounce_->stop();
+    emitSearchRequest();
 }
 
 void SearchPane::appendResult( LineNumber line, const QString& text )

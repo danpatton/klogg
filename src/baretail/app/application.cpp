@@ -4,6 +4,7 @@
 #include "highlighterset.h"
 #include "linetypes.h"
 #include "loadingstatus.h"
+#include "savedsearches.h"
 #include "selection.h"
 
 const char* BareTailApp::kRuleSetName = "BareTail";
@@ -57,6 +58,7 @@ BareTailApp::BareTailApp( int& argc, char** argv )
     // and wrap settings, HighlighterSetCollection for active highlight rules.
     Configuration::getSynced();
     HighlighterSetCollection::getSynced();
+    SavedSearches::getSynced();
 
     ensureBareTailRuleSet();
 }

@@ -29,7 +29,7 @@ TailDocument::TailDocument( const QString& fileName, QWidget* parent )
     // new tabs match what the user picked in Tools -> Font...
     const QFont mainFont = Configuration::get().mainFont();
     view_->updateFont( mainFont );
-    searchPane_->applyResultsFont( mainFont );
+    searchPane_->applyMainFont( mainFont );
 
     connect( view_, &AbstractLogView::markLines,
              this, &TailDocument::onMarkLinesRequested );
@@ -112,7 +112,7 @@ void TailDocument::jumpToBottom()
 void TailDocument::applyFont( const QFont& font )
 {
     view_->updateFont( font );
-    searchPane_->applyResultsFont( font );
+    searchPane_->applyMainFont( font );
 }
 
 void TailDocument::focusSearch()

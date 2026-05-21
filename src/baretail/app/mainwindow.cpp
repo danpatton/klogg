@@ -19,6 +19,7 @@
 #include "taildocument.h"
 #include "application.h"
 #include "highlightingdialog.h"
+#include "textsearchesdialog.h"
 
 namespace {
 // QSettings key under the org/app namespace set in main.cpp. Persisting
@@ -149,6 +150,9 @@ void MainWindow::buildMenus()
     auto* toolsMenu = menuBar()->addMenu( "&Tools" );
     auto* highlightAction = toolsMenu->addAction( "&Highlighting..." );
     connect( highlightAction, &QAction::triggered, this, &MainWindow::onEditHighlighters );
+
+    auto* searchesAction = toolsMenu->addAction( "Text &Searches..." );
+    connect( searchesAction, &QAction::triggered, this, &MainWindow::onEditTextSearches );
 
     auto* fontAction = toolsMenu->addAction( "&Font..." );
     connect( fontAction, &QAction::triggered, this, &MainWindow::onChooseFont );
@@ -309,6 +313,12 @@ void MainWindow::onEditHighlighters()
             }
         }
     } );
+    dialog.exec();
+}
+
+void MainWindow::onEditTextSearches()
+{
+    TextSearchesDialog dialog( this );
     dialog.exec();
 }
 

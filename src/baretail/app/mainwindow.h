@@ -23,6 +23,7 @@ class MainWindow : public QMainWindow {
     void onCurrentTabChanged( int index );
     void onTabLinesUpdated();
     void onEditHighlighters();
+    void onEditTextSearches();
     void onFollowTailToggled( bool checked );
     void onChooseFont();
     void onShowStatusBarToggled( bool checked );
