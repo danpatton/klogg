@@ -104,15 +104,15 @@ void MainWindow::buildMenus()
     connect( showStatusBarAction_, &QAction::toggled,
              this, &MainWindow::onShowStatusBarToggled );
 
-    auto* searchMenu = menuBar()->addMenu( "&Search" );
-    auto* findAction = searchMenu->addAction( "&Find" );
+    auto* findAction = new QAction( this );
     findAction->setShortcut( QKeySequence::Find );
-    findAction->setToolTip( "Focus the search box" );
+    findAction->setShortcutContext( Qt::WindowShortcut );
     connect( findAction, &QAction::triggered, this, [ this ]() {
         if ( auto* doc = currentDocument() ) {
             doc->focusSearch();
         }
     } );
+    addAction( findAction );
 
     auto* bookmarksMenu = menuBar()->addMenu( "&Bookmarks" );
     auto* toggleBmAction = bookmarksMenu->addAction( "&Toggle Bookmark" );
@@ -147,14 +147,14 @@ void MainWindow::buildMenus()
         }
     } );
 
-    auto* toolsMenu = menuBar()->addMenu( "&Tools" );
-    auto* highlightAction = toolsMenu->addAction( "&Highlighting..." );
+    auto* prefsMenu = menuBar()->addMenu( "&Preferences" );
+    auto* highlightAction = prefsMenu->addAction( "&Highlighting..." );
     connect( highlightAction, &QAction::triggered, this, &MainWindow::onEditHighlighters );
 
-    auto* searchesAction = toolsMenu->addAction( "Text &Searches..." );
+    auto* searchesAction = prefsMenu->addAction( "Text &Searches..." );
     connect( searchesAction, &QAction::triggered, this, &MainWindow::onEditTextSearches );
 
-    auto* fontAction = toolsMenu->addAction( "&Font..." );
+    auto* fontAction = prefsMenu->addAction( "&Font..." );
     connect( fontAction, &QAction::triggered, this, &MainWindow::onChooseFont );
 }
 
