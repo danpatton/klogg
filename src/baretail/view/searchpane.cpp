@@ -83,10 +83,7 @@ SearchPane::SearchPane( QWidget* parent )
     resultList_->setRootIsDecorated( false );
     resultList_->setUniformRowHeights( true );
     resultList_->setSelectionMode( QAbstractItemView::SingleSelection );
-    resultList_->setColumnCount( 2 );
-    resultList_->setHeaderLabels( { "Line", "Text" } );
-    resultList_->header()->setStretchLastSection( true );
-    resultList_->header()->resizeSection( 0, 80 );
+    configureColumns( 0 );
     connect( resultList_, &QTreeWidget::itemActivated, this, &SearchPane::onResultActivated );
     // Single-click jump matches the BareTailPro feel; itemActivated covers
     // Enter / double-click for keyboard navigation.
@@ -237,13 +234,45 @@ void SearchPane::onSavedSearchSelected( const SavedSearch& search )
     emitSearchRequest();
 }
 
-void SearchPane::appendResult( LineNumber line, const QString& text )
+void SearchPane::appendResult( LineNumber line, const QString& text,
+                               const QStringList& groupCaptures )
 {
     auto* item = new QTreeWidgetItem( resultList_ );
     // Display 1-based line numbers — internally LineNumber is 0-based.
     item->setText( 0, QString::number( line.get() + 1 ) );
     item->setText( 1, text );
+    const int count = std::min( static_cast<int>( groupCaptures.size() ), captureGroupCount_ );
+    for ( int i = 0; i < count; ++i ) {
+        item->setText( 2 + i, groupCaptures.at( i ) );
+    }
     item->setData( 0, Qt::UserRole, QVariant::fromValue( line.get() ) );
+}
+
+void SearchPane::configureColumns( int captureGroupCount )
+{
+    captureGroupCount_ = std::max( 0, captureGroupCount );
+    QStringList headers{ "Line", "Text" };
+    for ( int i = 1; i <= captureGroupCount_; ++i ) {
+        headers << QString::number( i );
+    }
+    resultList_->setColumnCount( headers.size() );
+    resultList_->setHeaderLabels( headers );
+
+    auto* header = resultList_->header();
+    header->resizeSection( 0, 80 );
+    if ( captureGroupCount_ == 0 ) {
+        // Text fills the remaining width.
+        header->setStretchLastSection( true );
+    }
+    else {
+        // Text stays dominant; group columns get an interactive default
+        // width so users can resize them.
+        header->setStretchLastSection( false );
+        header->setSectionResizeMode( 1, QHeaderView::Stretch );
+        for ( int i = 0; i < captureGroupCount_; ++i ) {
+            header->resizeSection( 2 + i, 120 );
+        }
+    }
 }
 
 void SearchPane::clearResults()

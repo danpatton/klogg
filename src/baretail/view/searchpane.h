@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QStringList>
 #include <QWidget>
 
 #include "linetypes.h"
@@ -53,12 +54,19 @@ class SearchPane : public QWidget {
 
   public Q_SLOTS:
     // Append one result row. Called by the document as matches stream in.
-    void appendResult( LineNumber line, const QString& text );
+    // groupCaptures, if non-empty, fills the capture-group columns added
+    // by configureColumns() in the same order.
+    void appendResult( LineNumber line, const QString& text,
+                       const QStringList& groupCaptures = {} );
     // Wipe the result list (and the status label).
     void clearResults();
     // Status text shown on the toolbar row, e.g. "Found 300 matching
     // lines so far...". Empty string hides it.
     void setStatusText( const QString& text );
+    // Rebuild the result list's columns. captureGroupCount=0 leaves only
+    // the default Line/Text pair; >0 adds that many columns labelled
+    // "1", "2", … matching regex group indices.
+    void configureColumns( int captureGroupCount );
 
   private Q_SLOTS:
     void onSearchTextChanged( const QString& text );
@@ -86,4 +94,5 @@ class SearchPane : public QWidget {
     QTreeWidget* resultList_;
     QTimer* debounce_;
     SavedSearchesPopup* savedSearchesPopup_;
+    int captureGroupCount_ = 0;
 };

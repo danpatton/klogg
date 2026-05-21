@@ -130,6 +130,39 @@ void TailDocument::onSearchRequested( const QString& pattern, bool isRegex, bool
     searchPane_->clearResults();
     resultsShown_ = 0;
 
+    // Compile the capture-group regex up front. We use it both to extract
+    // captures in appendNewMatches() and — more importantly — to validate
+    // the pattern before handing it to the search worker. The worker's
+    // own regex (inside RegularExpressionPattern) uses DontCaptureOption
+    // for matching speed, so we keep a separate copy here without it.
+    if ( isRegex ) {
+        QRegularExpression::PatternOptions opts = QRegularExpression::UseUnicodePropertiesOption;
+        if ( ignoreCase ) {
+            opts |= QRegularExpression::CaseInsensitiveOption;
+        }
+        captureRegex_ = QRegularExpression( pattern, opts );
+    }
+    else {
+        captureRegex_ = QRegularExpression();
+    }
+
+    if ( isRegex && !captureRegex_.isValid() ) {
+        // Don't dispatch an invalid regex to the search worker. It would
+        // call QRegularExpression::match() per line, and Qt logs
+        // "QRegularExpressionPrivate::doMatch(): called on an invalid
+        // QRegularExpression object" on every call. Surface the parse
+        // error in the status row and wait for the user to finish typing.
+        captureGroupCount_ = 0;
+        searchPane_->configureColumns( 0 );
+        searchActive_ = false;
+        searchPane_->setStatusText(
+            QString( "Invalid regex: %1" ).arg( captureRegex_.errorString() ) );
+        return;
+    }
+
+    captureGroupCount_ = isRegex ? std::max( 0, captureRegex_.captureCount() ) : 0;
+    searchPane_->configureColumns( captureGroupCount_ );
+
     currentPattern_ = RegularExpressionPattern( pattern, /*caseSensitive=*/!ignoreCase,
                                                 /*inverse=*/invertMatch, /*boolean=*/false,
                                                 /*plainText=*/!isRegex );
@@ -144,10 +177,6 @@ void TailDocument::onSearchRequested( const QString& pattern, bool isRegex, bool
     searchPane_->setStatusText( "Searching..." );
 
     filteredData_->runSearch( currentPattern_ );
-
-    // Drive the inline highlight in the main view from the same pattern,
-    // so visible matches show up coloured under the cursor.
-    qfp_->changeSearchPattern( pattern, ignoreCase, isRegex );
 }
 
 void TailDocument::onStopRequested()
@@ -164,7 +193,6 @@ void TailDocument::onClearRequested()
     filteredData_->clearSearch();
     searchActive_ = false;
     resultsShown_ = 0;
-    qfp_->changeSearchPattern( QString() );
     view_->update();
 }
 
@@ -197,7 +225,17 @@ void TailDocument::appendNewMatches()
         const auto matchIndex = LineNumber( i );
         const auto sourceLine = filteredData_->getMatchingLineNumber( matchIndex );
         const QString text = logData_->getLineString( sourceLine );
-        searchPane_->appendResult( sourceLine, text );
+        QStringList groups;
+        if ( captureGroupCount_ > 0 ) {
+            const auto m = captureRegex_.match( text );
+            if ( m.hasMatch() ) {
+                groups.reserve( captureGroupCount_ );
+                for ( int g = 1; g <= captureGroupCount_; ++g ) {
+                    groups << m.captured( g );
+                }
+            }
+        }
+        searchPane_->appendResult( sourceLine, text, groups );
     }
     resultsShown_ = total;
 }

@@ -2193,7 +2193,6 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
     QColor foreColor, backColor;
 
     static const QBrush normalBulletBrush = QBrush( Qt::white );
-    static const QBrush matchBulletBrush = QBrush( Qt::red );
     static const QBrush markBrush = QBrush( "dodgerblue" );
     static const QBrush markedMatchBrush = QBrush( "violet" );
 
@@ -2514,13 +2513,13 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
             painter->drawPolygon( points, 7 );
         }
         else {
-            // For pretty circles
+            // For pretty circles. baretail intentionally does not colour
+            // the bullet on match — search matches are already visible
+            // in the search pane and via the inline highlight in the
+            // text area, and the red dots were noisy and only appeared
+            // after a stray repaint (e.g. on Enter or a checkbox toggle).
             painter->setRenderHint( QPainter::Antialiasing );
-
-            QBrush brush = normalBulletBrush;
-            if ( currentLineType.testFlag( LineTypeFlags::Match ) )
-                brush = matchBulletBrush;
-            painter->setBrush( brush );
+            painter->setBrush( normalBulletBrush );
             painter->drawEllipse( middleXLine - circleSize, middleYLine - circleSize,
                                   circleSize * 2, circleSize * 2 );
         }

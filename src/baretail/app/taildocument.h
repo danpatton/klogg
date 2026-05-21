@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include <QRegularExpression>
 #include <QWidget>
 
 #include "linetypes.h"
@@ -86,4 +87,12 @@ class TailDocument : public QWidget {
     bool searchActive_ = false;
     RegularExpressionPattern currentPattern_;
     quint64 resultsShown_ = 0;
+
+    // Mirror of currentPattern_ without DontCaptureOption, kept here so
+    // appendNewMatches() can re-run the regex against each matched line
+    // to extract capture-group strings for the search pane's group
+    // columns. captureGroupCount_ is QRegularExpression::captureCount(),
+    // clamped to 0 for invalid or non-regex patterns.
+    QRegularExpression captureRegex_;
+    int captureGroupCount_ = 0;
 };
