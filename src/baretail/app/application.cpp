@@ -1,9 +1,13 @@
 #include "application.h"
 
+#include <QFont>
+#include <QSettings>
+
 #include "configuration.h"
 #include "highlighterset.h"
 #include "linetypes.h"
 #include "loadingstatus.h"
+#include "persistentinfo.h"
 #include "savedsearches.h"
 #include "selection.h"
 
@@ -59,6 +63,16 @@ BareTailApp::BareTailApp( int& argc, char** argv )
     Configuration::getSynced();
     HighlighterSetCollection::getSynced();
     SavedSearches::getSynced();
+
+    // baretail ships a different viewport default than klogg (which bundles
+    // DejaVu via its qrc). Only apply when the user hasn't picked a font yet,
+    // so a saved choice always wins on subsequent launches.
+    auto& settings = PersistentInfo::getSettings( app_settings{} );
+    if ( !settings.contains( "mainFont.family" ) ) {
+        QFont font( "Nimbus Mono PS Regular", 10 );
+        font.setStyleHint( QFont::Courier, QFont::PreferOutline );
+        Configuration::get().setMainFont( font );
+    }
 
     ensureBareTailRuleSet();
 }

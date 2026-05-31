@@ -53,15 +53,15 @@ int main( int argc, char* argv[] )
         return 0;
     }
 
+    QFont uiFont( "Nimbus Sans Regular", 9 );
     if ( parser.isSet( uiFontOption ) ) {
-        QFont uiFont;
         if ( !uiFont.fromString( parser.value( uiFontOption ) ) ) {
             std::fprintf( stderr, "baretail: could not parse --ui-font value '%s'\n",
                           parser.value( uiFontOption ).toLocal8Bit().constData() );
             return 1;
         }
-        QApplication::setFont( uiFont );
     }
+    QApplication::setFont( uiFont );
 
     // Multi-resolution app icon. Qt picks 16x16 for title bars / tabs,
     // 32x32 for the taskbar at standard DPI; the .ico plugin handles both.
